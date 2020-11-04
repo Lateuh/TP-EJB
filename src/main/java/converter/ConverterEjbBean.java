@@ -6,6 +6,7 @@ import org.jdom2.JDOMException;
 import org.jdom2.Namespace;
 import org.jdom2.input.SAXBuilder;
 
+import javax.ejb.Remote;
 import javax.ejb.Stateless;
 import javax.net.ssl.HttpsURLConnection;
 import java.io.IOException;
@@ -14,6 +15,7 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 
+@Remote
 @Stateless(name = "ConverterEjbEJB")
 public class ConverterEjbBean implements IConverter{
     public ConverterEjbBean() {
