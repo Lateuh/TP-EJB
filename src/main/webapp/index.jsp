@@ -6,9 +6,16 @@
   To change this template use File | Settings | File Templates.
 --%>
 <%@ page contentType="text/html;charset=UTF-8" language="java" %>
+<jsp:useBean class="converter.ConverterEjbBean" id="beanConv"/>
+<%@ page import="java.util.*" %>
+<%@ page import="org.jdom2.JDOMException" %>
+<%@ page import="converter.Monnaie" %>
+<%@ page import="javax.naming.Context" %>
+<%@ page import="javax.naming.InitialContext" %>
+<%@ page import="javax.jms.*" %>
 <html>
 <head>
-    <title>Title</title>
+    <title>Converter</title>
 </head>
 <body>
     <div>
@@ -16,62 +23,67 @@
             <label>Euros :
                 <input type="number" name="amount">
             </label>
+            </br>
+            <label>Email :
+                <input type="email" name="addrEmailClient">
+            </label>
             <input type="submit" value="Change">
         </form>
         <label for="currencies">Choose a currency:</label>
         <select name="currencies" id="currencies" form="currencyChange">
-            <option value="USD">Dollars (American)</option>
-            <option value="JPY">JPY</option>
-            <option value="BGN">BGN</option>
-            <option value="CZK">CZK</option>
-            <option value="DKK">DKK</option>
-            <option value="GBP">GBP</option>
-            <option value="HUF">HUF</option>
-            <option value="PLN">PLN</option>
-            <option value="RON">RON</option>
-            <option value="SEK">SEK</option>
-            <option value="CHF">CHF</option>
-            <option value="ISK">ISK</option>
-            <option value="NOK">NOK</option>
-            <option value="HRK">HRK</option>
-            <option value="RUB">RUB</option>
-            <option value="TRY">TRY</option>
-            <option value="AUD">AUD</option>
-            <option value="BRL">BRL</option>
-            <option value="CAD">CAD</option>
-            <option value="CNY">CNY</option>
-            <option value="HKD">HKD</option>
-            <option value="IDR">IDR</option>
-            <option value="ILS">ILS</option>
-            <option value="INR">INR</option>
-            <option value="KRW">KRW</option>
-            <option value="MXN">MXN</option>
-            <option value="NZD">NZD</option>
-            <option value="PHP">PHP</option>
-            <option value="SGD">SGD</option>
-            <option value="THB">THB</option>
-            <option value="ZAR">ZAR</option>
+            <%
+                ConverterEjbBean ejb = new ConverterEjbBean();
+                for(Monnaie m : ejb.getAvailableCurrencies()){
+                    out.println("<option value="+ m.getCodeMonnaie()+" >"+ m.getNomCompletMonnaie()+"</option>");
+                }
+            %>
         </select>
     </div>
 
 
-    <jsp:useBean class="converter.ConverterEjbBean" id="beanConv"/>
-    <%@page import="java.util.*" %>
-    <%@ page import="org.jdom2.JDOMException" %>
+
     <%
     if(request.getParameter("amount") == null || request.getParameter("amount").equals("")){
-        out.println("<h4>Fill the amount input</h4>");
+        out.println("<h4>Please fill the amount input</h4>");
     }else{
-        ConverterEjbBean ejb = new ConverterEjbBean();
-        double resultat = 0;
-        try {
-            resultat = ejb.euroToOtherCurrency(Double.parseDouble(request.getParameter("amount")),request.getParameter("currencies"));
-        } catch (JDOMException e) {
-            e.printStackTrace();
+        if(request.getParameter("addrEmailClient") == null || request.getParameter("addrEmailClient").equals("")){}
+        else {
+            //Récupérer le contexte initial dans le serveur de noms JNDI
+            Context jndiContext = new InitialContext();
+
+            //Obtenir une instance de la fabrique de connexions qui a été créée précédemment
+            javax.jms.ConnectionFactory connectionFactory = (QueueConnectionFactory) jndiContext.lookup("/ConnectionFactory");
+
+            //Créer une connexion à l’aide de la fabrique de connexions
+            Connection connection = connectionFactory.createConnection();
+
+            //Créer une session sans transactions et avec des accusés de réception
+            Session sessionQ = connection.createSession(false,Session.AUTO_ACKNOWLEDGE);
+
+            //Créer un message de type texte utilisant l’objet session
+            TextMessage message = sessionQ.createTextMessage();
+
+            //Mettre le texte nécessaire dans ce message
+            message.setText(request.getParameter("amount")+"#"+request.getParameter("addrEmailClient"));
+
+            //Obtenir une référence vers une instance de la file de messages
+            javax.jms.Queue queue = (javax.jms.Queue) jndiContext.lookup("queue/MailContent");
+
+            //Créer un objet de type producteur de messages sur la file de messages à l’aide de l’objet session
+            MessageProducer messageProducer = sessionQ.createProducer(queue);
+
+            //Envoyer le message à l’aide de cet objet producteur de messages
+            messageProducer.send(message);
+
+            out.println("<h3>tentative envoie mail</h3>");
         }
-        out.println("<h4>Converted amount is : </h4>"+ resultat);
+        double resultat = 0;
+        resultat = ejb.euroToOtherCurrency(Double.parseDouble(request.getParameter("amount")),request.getParameter("currencies"));
+        out.println("<h4>Converted amount is : "+ resultat+"</h4>");
     }
-%>
+
+
+    %>
 
 </body>
 </html>
